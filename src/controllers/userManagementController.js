@@ -1,94 +1,78 @@
-// admin-service/src/controllers/userManagementController.js
-
-import axios from 'axios';
+import User from '../models/User.js';
 import SystemLog from '../models/SystemLog.js';
-import env from '../config/env.js';
 
-// @desc   Get all users
-// @route  GET /api/admin/users
-// @access Private (admin)
 const getAllUsers = async (req, res, next) => {
   try {
     const { userType, page = 1, limit = 20, search } = req.query;
+    const filter = {};
 
-    // Auth service se users fetch karo
-    const response = await axios.get(`${env.AUTH_SERVICE_URL}/api/auth/users`, {
-      params: { userType, page, limit, search },
-      headers: { Authorization: req.headers.authorization }
-    });
-
-    res.status(200).json(response.data);
-
-  } catch (error) {
-    // Auth service not available
-    if (error.code === 'ECONNREFUSED') {
-      return res.status(503).json({
-        success: false,
-        message: 'Auth service temporarily unavailable'
-      });
+    if (userType) filter.userType = userType;
+    if (search) {
+      filter.$or = [
+        { username: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+      ];
     }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const total = await User.countDocuments(filter);
+    const users = await User.find(filter)
+      .select('-password')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    res.json({
+      success: true,
+      count: users.length,
+      total,
+      page: parseInt(page),
+      pages: Math.ceil(total / parseInt(limit)),
+      data: users,
+    });
+  } catch (error) {
     next(error);
   }
 };
 
-// @desc   Block user
-// @route  PUT /api/admin/users/:userId/block
-// @access Private (admin)
 const blockUser = async (req, res, next) => {
   try {
     const { userId } = req.params;
     const { reason } = req.body;
 
-    await axios.put(
-      `${env.AUTH_SERVICE_URL}/api/auth/users/${userId}/block`,
-      { reason },
-      { headers: { Authorization: req.headers.authorization } }
-    );
+    const user = await User.findByIdAndUpdate(userId, { isActive: false }, { new: true });
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
     await SystemLog.create({
       level: 'warn',
       service: 'admin',
       action: 'USER_BLOCKED',
-      message: `User ${userId} blocked by ${req.admin.username}. Reason: ${reason}`,
-      metadata: { userId, adminId: req.admin._id.toString(), reason }
+      message: `User ${userId} blocked by ${req.admin?.username || 'admin'}. Reason: ${reason}`,
+      metadata: { userId, adminId: req.admin?._id?.toString(), reason }
     });
 
-    res.status(200).json({
-      success: true,
-      message: 'User blocked successfully'
-    });
-
+    res.json({ success: true, message: 'User blocked successfully' });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc   Unblock user
-// @route  PUT /api/admin/users/:userId/unblock
-// @access Private (admin)
 const unblockUser = async (req, res, next) => {
   try {
     const { userId } = req.params;
 
-    await axios.put(
-      `${env.AUTH_SERVICE_URL}/api/auth/users/${userId}/unblock`,
-      {},
-      { headers: { Authorization: req.headers.authorization } }
-    );
+    const user = await User.findByIdAndUpdate(userId, { isActive: true }, { new: true });
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
     await SystemLog.create({
       level: 'info',
       service: 'admin',
       action: 'USER_UNBLOCKED',
-      message: `User ${userId} unblocked by ${req.admin.username}`,
-      metadata: { userId, adminId: req.admin._id.toString() }
+      message: `User ${userId} unblocked by ${req.admin?.username || 'admin'}`,
+      metadata: { userId, adminId: req.admin?._id?.toString() }
     });
 
-    res.status(200).json({
-      success: true,
-      message: 'User unblocked successfully'
-    });
-
+    res.json({ success: true, message: 'User unblocked successfully' });
   } catch (error) {
     next(error);
   }

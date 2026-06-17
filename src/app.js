@@ -62,7 +62,7 @@ if (process.env.NODE_ENV === 'development') {
 // Rate limiter - admin routes ke liye strict
 const adminLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
+  max: 200,
   message: {
     success: false,
     message: 'Too many requests. Try again in 15 minutes.'

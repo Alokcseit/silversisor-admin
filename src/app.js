@@ -14,6 +14,7 @@ import analyticsRoutes from './routes/analyticsRoutes.js';
 import systemRoutes from './routes/systemRoutes.js';
 import catalogServiceRoutes from './routes/catalogServiceRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
+import contentSectionRoutes from './routes/contentSectionRoutes.js';
 import errorHandler from './middleware/errorMiddleware.js';
 import { checkConnection } from './config/db.js';
 
@@ -89,6 +90,7 @@ app.use('/api/admin/analytics', analyticsRoutes);
 app.use('/api/admin/system', systemRoutes);
 app.use('/api/admin/services', catalogServiceRoutes);
 app.use('/api/admin', uploadRoutes);
+app.use('/api/admin', contentSectionRoutes);
 
 // 404
 app.use('/api/admin', (req, res) => {

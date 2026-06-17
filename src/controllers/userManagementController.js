@@ -3,7 +3,7 @@ import SystemLog from '../models/SystemLog.js';
 
 const getAllUsers = async (req, res, next) => {
   try {
-    const { userType, page = 1, limit = 20, search } = req.query;
+    const { userType, limit = 20, search, cursor } = req.query;
     const filter = {};
 
     if (userType) filter.userType = userType;
@@ -14,21 +14,28 @@ const getAllUsers = async (req, res, next) => {
       ];
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
     const total = await User.countDocuments(filter);
-    const users = await User.find(filter)
+    const query = User.find(filter)
       .select('-password')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit));
+      .sort({ _id: -1 })
+      .limit(parseInt(limit) + 1);
+
+    if (cursor) {
+      query.where('_id').lt(cursor);
+    }
+
+    const users = await query;
+    const hasMore = users.length > parseInt(limit);
+    if (hasMore) users.pop();
+    const nextCursor = users.length > 0 ? users[users.length - 1]._id.toString() : null;
 
     res.json({
       success: true,
       count: users.length,
       total,
-      page: parseInt(page),
-      pages: Math.ceil(total / parseInt(limit)),
       data: users,
+      nextCursor,
+      hasMore,
     });
   } catch (error) {
     next(error);
